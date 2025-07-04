@@ -18,7 +18,7 @@
 
 ## 📈 StrateQueue 📉
 
-Backtest vivere in seconds. Stratequeue lets deploy quis Python negotiatione belli (**backtrader**,**Zipline**,**vectorbt**,**backtrader**, Etc.) ad ulla sectorem cum uno mandatum:`stratequeue deploy --strategy ./your_script.py`. Nulla codice mutationes.
+Backtest vivere in seconds. Stratequeue lets deploy quis Python negotiatione belli (**backtrader**,**Zipline**,**vectorbt**, **backtrader**, Etc.) ad ulla sectorem cum uno mandatum:`stratequeue deploy --strategy ./your_script.py`. Nulla codice mutationes.
 
 ## 📑 Table of Contents
 
@@ -108,7 +108,7 @@ stratequeue webui
 
 ## 🔧 fulcitur integrations
 
-| Integration                 | Status                         |
+| Integratio                  | Status                         |
 | --------------------------- | ------------------------------ |
 | **Backtesting engines**     |                                |
 | Cie ├ backtesting.py        | ✅ implemented                  |
@@ -133,7 +133,7 @@ stratequeue webui
 
 **🔌 engine agnostic**- Works cum backtesting.py, vectorbt, backtrader, zipline-reloaded, et magis venire cito.
 
-**🏦 Multi-sectorem**- Unified API per Interactive sectoribus, Alpaca, et magis venire cito.
+**🏦 Multi-Broker**- Unified API per Interactive sectoribus, Alpaca, et magis venire cito.
 
 **🎯 Portfolio Management**- Deploy una Strategies vel Cart Hunests trans Tullius Rationes
 
