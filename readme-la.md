@@ -131,7 +131,7 @@ stratequeue webui
 
 **🛡️ tutum per default**- annuit, solum modus per default. Non accidentalis artium.
 
-**🔌 engine agnostic**- Works cum backtesting.py, vectorbt, backtrader, zipline-reloaded, et magis venire cito.
+**🔌 engine agnostic** — Works with backtesting.py, VectorBT, Backtrader, Zipline-Reloaded, and more coming soon.
 
 **🏦 Multi-sectorem**- Unified API per Interactive sectoribus, Alpaca, et magis venire cito.
 
