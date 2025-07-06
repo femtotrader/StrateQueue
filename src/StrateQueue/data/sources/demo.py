@@ -149,9 +149,14 @@ class TestDataIngestion(BaseDataIngestion):
             current_price = close_price
 
         # Create DataFrame
-        df = pd.DataFrame(data)
-        df.set_index("timestamp", inplace=True)
-        df.index = pd.to_datetime(df.index)
+        if not data:
+            # Handle empty data case (e.g., days_back=0)
+            df = pd.DataFrame(columns=["Open", "High", "Low", "Close", "Volume"])
+            df.index = pd.DatetimeIndex([], name="timestamp")
+        else:
+            df = pd.DataFrame(data)
+            df.set_index("timestamp", inplace=True)
+            df.index = pd.to_datetime(df.index)
 
         # Store in dedicated memo-cache **before** logging/returning so that
         # immediate subsequent calls hit the fast path above.
@@ -265,9 +270,14 @@ class TestDataIngestion(BaseDataIngestion):
             current_price = close_price
 
         # Create DataFrame
-        df = pd.DataFrame(data)
-        df.set_index("timestamp", inplace=True)
-        df.index = pd.to_datetime(df.index)
+        if not data:
+            # Handle empty data case (shouldn't happen in minimal generation, but be safe)
+            df = pd.DataFrame(columns=["Open", "High", "Low", "Close", "Volume"])
+            df.index = pd.DatetimeIndex([], name="timestamp")
+        else:
+            df = pd.DataFrame(data)
+            df.set_index("timestamp", inplace=True)
+            df.index = pd.to_datetime(df.index)
 
         # Cache the data
         self.historical_data[symbol] = df
