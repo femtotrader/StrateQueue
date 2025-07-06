@@ -48,9 +48,14 @@ def run_cli(*args, stdin: str = "", env: Optional[Dict[str, str]] = None,
     cmd = [sys.executable, "-m", "StrateQueue.cli.cli"] + list(args)
     
     # Merge environment variables
-    test_env = os.environ.copy()
+    test_env = {}        # instead of os.environ.copy()
+    test_env.update(os.environ.get("PYTHONPATH", ""))  # minimal essentials
     if env:
         test_env.update(env)
+    
+    for var in ("PAPER_KEY","PAPER_SECRET","ALPACA_API_KEY","ALPACA_SECRET_KEY",
+                "IB_TWS_PORT","IB_CLIENT_ID","IB_TWS_HOST"):
+        test_env[var] = ""
     
     try:
         result = subprocess.run(
@@ -88,8 +93,10 @@ def cli_runner(tmp_working_dir, mock_offline_env):
         exit_code, stdout, stderr = cli_runner("--help")
     """
     def _run_cli(*args, **kwargs):
-        # Ensure the spawned process runs inside the temporary working dir by default
-        kwargs.setdefault('cwd', tmp_working_dir)
+        # Run CLI subprocess from project root so sitecustomize.py is loaded
+        # This is needed for SQ_TEST_STUB_BROKERS to work properly
+        project_root = Path(__file__).resolve().parents[3]  # Go up from tests/integration_tests/cli/
+        kwargs.setdefault('cwd', project_root)
 
         # Merge/append environment variables so the child process inherits the
         # *offline* settings (no real network/Broker SDK imports) unless the
