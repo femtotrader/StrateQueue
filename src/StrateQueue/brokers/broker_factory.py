@@ -55,8 +55,11 @@ class BrokerFactory:
         if cls._initialized:
             return
 
+        # Use absolute imports to respect sys.modules stubs (for testing)
         try:
-            from .Alpaca.alpaca_broker import AlpacaBroker
+            import importlib
+            alpaca_module = importlib.import_module('StrateQueue.brokers.Alpaca.alpaca_broker')
+            AlpacaBroker = alpaca_module.AlpacaBroker
             cls._brokers['alpaca'] = AlpacaBroker
             logger.debug("Registered Alpaca broker")
         except ImportError as e:
@@ -64,7 +67,10 @@ class BrokerFactory:
 
         # Register Interactive Brokers with multiple aliases
         try:
-            from .IBKR.ibkr_broker import IBKRBroker
+            import importlib
+            ibkr_module = importlib.import_module('StrateQueue.brokers.IBKR.ibkr_broker')
+            IBKRBroker = ibkr_module.IBKRBroker
+            
             # Register with multiple aliases for user convenience
             cls._brokers['ibkr'] = IBKRBroker
             cls._brokers['IBKR'] = IBKRBroker
@@ -180,10 +186,13 @@ class BrokerFactory:
         Get list of supported broker types
 
         Returns:
-            List of broker type names
+            List of canonical broker type names (deduplicated)
         """
         cls._initialize_brokers()
-        return list(cls._brokers.keys())
+        # Deduplicate via canonical form so aliases (IBKR, interactive-brokers …)
+        # only appear once.  Sorting gives deterministic order for tests.
+        canonical = {cls._normalize_broker_type(name) for name in cls._brokers}
+        return sorted(canonical)
 
     @classmethod
     def is_broker_supported(cls, broker_type: str) -> bool:

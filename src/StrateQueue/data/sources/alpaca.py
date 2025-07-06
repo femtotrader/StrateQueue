@@ -56,7 +56,16 @@ try:
     _ALPACA_AVAILABLE = True
 except ImportError:
     _ALPACA_AVAILABLE = False
-    # Leave classes undefined; ProviderFactory will skip registration.
+    # Set to None for testing/mocking purposes
+    StockHistoricalDataClient = None
+    TimeFrame = None
+    StockBarsRequest = None
+    CryptoBarsRequest = None
+    DataFeed = None
+    _Adjustment = None
+    StockDataStream = None
+    CryptoHistoricalDataClient = None
+    CryptoDataStream = None
 
 logger = logging.getLogger(__name__)
 
@@ -140,8 +149,6 @@ class AlpacaDataIngestion(BaseDataIngestion):
             feed = "us"  # default crypto feed label – Alpaca only offers one
             self._stream: CryptoDataStream = CryptoDataStream(api_key, secret_key, feed=feed)  # type: ignore
         else:
-            from alpaca.data.enums import DataFeed
-
             # Choose IEX (free/paper) or SIP (live) feed explicitly
             feed_enum = DataFeed.IEX if paper else DataFeed.SIP
 

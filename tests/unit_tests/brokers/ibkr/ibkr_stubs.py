@@ -18,6 +18,7 @@ import gc
 import sys
 import types
 import uuid
+from datetime import datetime
 from types import SimpleNamespace
 
 # ---------------------------------------------------------------------------
@@ -66,10 +67,20 @@ class _FakeIB:  # noqa: D401 – stub client
         self._connected = False
         self._trades: list[_FakeTrade] = []
         self.wrapper = _Wrapper()
+        
+        # Event handlers - need proper += support
+        class MockEvent:
+            def __iadd__(self, handler):
+                return self
+        
+        self.barUpdateEvent = MockEvent()
+        self.pendingTickersEvent = MockEvent()
 
     # ----- connectivity ----------------------------------------------------
-    def connect(self, *_, **__):
+    def connect(self, host="127.0.0.1", port=7497, clientId=1, **kwargs):
         self._connected = True
+        # Store port to mimic real ib_insync behavior
+        self.client_port = port
 
     def isConnected(self):  # noqa: D401 – name matches real ib_insync
         return self._connected
@@ -170,6 +181,65 @@ class _FakeIB:  # noqa: D401 – stub client
             primaryExchange="NASDAQ",
         )
         return [SimpleNamespace(contract=contract, derivativeSecTypes=[])]
+    
+    # Gateway broker specific methods
+    def reqMktData(self, contract, genericTickList='', snapshot=False, regulatorySnapshot=False):
+        """Request market data for a contract."""
+        ticker = SimpleNamespace(
+            contract=contract,
+            last=100.0,
+            bid=99.5,
+            ask=100.5,
+            bidSize=100,
+            askSize=100,
+            volume=1000,
+            updateEvent=lambda: None  # Mock event
+        )
+        return ticker
+    
+    def reqRealTimeBars(self, contract, barSize, whatToShow, useRTH):
+        """Request real-time bars."""
+        pass  # Just a stub
+    
+    def reqHistoricalData(self, contract, endDateTime, durationStr, barSizeSetting, whatToShow, useRTH, formatDate):
+        """Request historical data."""
+        # Return some mock bars
+        return [
+            SimpleNamespace(
+                date=datetime.now(),
+                open=100.0,
+                high=102.0,
+                low=99.0,
+                close=101.0,
+                volume=1000
+            )
+        ]
+    
+    def reqMarketDataType(self, marketDataType):
+        """Set market data type."""
+        pass  # Just a stub
+    
+    def cancelMktData(self, contract):
+        """Cancel market data subscription."""
+        pass  # Just a stub
+    
+    def cancelRealTimeBars(self, contract):
+        """Cancel real-time bars subscription."""
+        pass  # Just a stub
+    
+    def tickers(self):
+        """Return list of tickers."""
+        return []
+    
+    def ticker(self, contract):
+        """Get ticker for contract."""
+        return SimpleNamespace(
+            contract=contract,
+            marketPrice=lambda: 100.0,
+            last=100.0,
+            close=100.0
+        )
+    
     # ADD end
 
 
@@ -198,10 +268,83 @@ class _FakeContract:  # noqa: D401 – placeholder
 
 
 class _FakeStock:  # noqa: D401 – placeholder
-    pass
+    def __init__(self, *args, **kwargs):
+        # Handle both positional and keyword arguments
+        if args:
+            self.symbol = args[0]
+            if len(args) > 1:
+                self.exchange = args[1]
+            else:
+                self.exchange = "SMART"
+            if len(args) > 2:
+                self.currency = args[2]
+            else:
+                self.currency = "USD"
+        else:
+            self.symbol = kwargs.get("symbol", "AAPL")
+            self.exchange = kwargs.get("exchange", "SMART")
+            self.currency = kwargs.get("currency", "USD")
+
+
+class _FakeForex:  # noqa: D401 – placeholder
+    def __init__(self, *args, **kwargs):
+        if args:
+            self.symbol = args[0]
+        else:
+            self.symbol = kwargs.get("pair", "EURUSD")
+
+
+class _FakeFuture:  # noqa: D401 – placeholder
+    def __init__(self, *args, **kwargs):
+        if args:
+            self.symbol = args[0]
+            if len(args) > 1:
+                self.exchange = args[1]
+            else:
+                self.exchange = "GLOBEX"
+        else:
+            self.symbol = kwargs.get("symbol", "ES")
+            self.exchange = kwargs.get("exchange", "GLOBEX")
+
+
+class _FakeOption:  # noqa: D401 – placeholder
+    def __init__(self, *args, **kwargs):
+        if args:
+            self.symbol = args[0]
+            if len(args) > 1:
+                self.exchange = args[1]
+            else:
+                self.exchange = "SMART"
+        else:
+            self.symbol = kwargs.get("symbol", "AAPL")
+            self.exchange = kwargs.get("exchange", "SMART")
+
+
+class _FakeCrypto:  # noqa: D401 – placeholder
+    def __init__(self, *args, **kwargs):
+        if args:
+            if len(args) >= 2:
+                self.symbol = f"{args[0]}{args[1]}"
+                if len(args) > 2:
+                    self.exchange = args[2]
+                else:
+                    self.exchange = "PAXOS"
+            else:
+                self.symbol = args[0]
+                self.exchange = "PAXOS"
+        else:
+            base = kwargs.get("base", "BTC")
+            quote = kwargs.get("quote", "USD")
+            self.symbol = f"{base}{quote}"
+            self.exchange = kwargs.get("exchange", "PAXOS")
+
 
 ib_pkg.Contract = _FakeContract
 ib_pkg.Stock = _FakeStock
+ib_pkg.Forex = _FakeForex
+ib_pkg.Future = _FakeFuture
+ib_pkg.Option = _FakeOption
+ib_pkg.Crypto = _FakeCrypto
 
 # Expose sub-module entries so that ``from ib_insync import util`` works.
 sys.modules.update(
@@ -219,6 +362,13 @@ for _mn, _m in list(sys.modules.items()):
         setattr(_m, "IB", _FakeIB)
         setattr(_m, "util", ib_pkg.util)
         setattr(_m, "Order", _FakeOrder)
+        # Also set other classes that might be imported
+        setattr(_m, "Stock", _FakeStock)
+        setattr(_m, "Contract", _FakeContract)
+        setattr(_m, "Forex", _FakeForex)
+        setattr(_m, "Future", _FakeFuture)
+        setattr(_m, "Option", _FakeOption)
+        setattr(_m, "Crypto", _FakeCrypto)
 # ADD end
 
 # ---------------------------------------------------------------------------
