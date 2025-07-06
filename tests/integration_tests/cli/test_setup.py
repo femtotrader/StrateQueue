@@ -543,7 +543,21 @@ class TestSetupCommandCrossWorkflow:
         assert "ALPACA:" in status_output or "Alpaca" in status_output, f"Alpaca broker not mentioned in status: {status_output}"
         
         # Should not show red X marks for Alpaca
-        assert "❌ Not detected" not in status_output or "ALPACA:" not in status_output.split("❌ Not detected")[0], f"Unexpected red X for Alpaca: {status_output}"
+        # Check if the Alpaca section specifically has a red X
+        alpaca_section = ""
+        lines = status_output.split('\n')
+        in_alpaca_section = False
+        for line in lines:
+            if "ALPACA:" in line:
+                in_alpaca_section = True
+                alpaca_section = line + '\n'
+            elif in_alpaca_section:
+                if line.strip() and not line.startswith('  '):
+                    # Start of new section
+                    break
+                alpaca_section += line + '\n'
+        
+        assert "❌ Not detected" not in alpaca_section, f"Unexpected red X for Alpaca: {alpaca_section}"
 
     def test_programmatic_env_file_then_status_persistence(self, tmp_working_dir):
         """F-1b: Programmatically write env file, then verify status detects it"""
@@ -599,7 +613,21 @@ PAPER_ENDPOINT=https://paper-api.alpaca.markets
         assert "ALPACA:" in status_output or "Alpaca" in status_output, f"Alpaca broker not mentioned in status: {status_output}"
         
         # Should not show red X marks for Alpaca
-        assert "❌ Not detected" not in status_output or "ALPACA:" not in status_output.split("❌ Not detected")[0], f"Unexpected red X for Alpaca: {status_output}"
+        # Check if the Alpaca section specifically has a red X
+        alpaca_section = ""
+        lines = status_output.split('\n')
+        in_alpaca_section = False
+        for line in lines:
+            if "ALPACA:" in line:
+                in_alpaca_section = True
+                alpaca_section = line + '\n'
+            elif in_alpaca_section:
+                if line.strip() and not line.startswith('  '):
+                    # Start of new section
+                    break
+                alpaca_section += line + '\n'
+        
+        assert "❌ Not detected" not in alpaca_section, f"Unexpected red X for Alpaca: {alpaca_section}"
 
     def test_setup_then_status_different_sessions(self, tmp_working_dir):
         """F-1c: Setup in one session, status in another (simulates CLI restart)"""
@@ -687,5 +715,19 @@ PAPER_ENDPOINT=https://paper-api.alpaca.markets
         assert "❌ Not detected" in status_output, f"Expected red X for missing credentials not found: {status_output}"
         assert "ALPACA:" in status_output or "Alpaca" in status_output, f"Alpaca broker not mentioned in status: {status_output}"
         
-        # Should not show green checkmarks
-        assert "✅ Detected and configured" not in status_output or "ALPACA:" not in status_output.split("✅ Detected and configured")[0], f"Unexpected green checkmark with no credentials: {status_output}" 
+        # Should not show green checkmarks for Alpaca
+        # Check if the Alpaca section specifically has a green checkmark
+        alpaca_section = ""
+        lines = status_output.split('\n')
+        in_alpaca_section = False
+        for line in lines:
+            if "ALPACA:" in line:
+                in_alpaca_section = True
+                alpaca_section = line + '\n'
+            elif in_alpaca_section:
+                if line.strip() and not line.startswith('  '):
+                    # Start of new section
+                    break
+                alpaca_section += line + '\n'
+        
+        assert "✅ Detected and configured" not in alpaca_section, f"Unexpected green checkmark for Alpaca with no credentials: {alpaca_section}" 

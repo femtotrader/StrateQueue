@@ -284,11 +284,20 @@ class TestDataIngestion(BaseDataIngestion):
         # Random price movement with mean reversion
         price_change_pct = random.gauss(0, self.price_volatility)
 
-        # Add mean reversion tendency
-        if current_price > base_price * 1.15:
-            price_change_pct -= 0.005  # Downward bias when too high
-        elif current_price < base_price * 0.85:
-            price_change_pct += 0.005  # Upward bias when too low
+        # Improved mean reversion tendency - stronger and more responsive
+        # Calculate distance from base price as a percentage
+        distance_from_base = (current_price - base_price) / base_price
+        
+        # Apply stronger mean reversion force that scales with distance
+        # The further away from base price, the stronger the reversion force
+        reversion_strength = abs(distance_from_base) * 0.1  # Scale factor
+        
+        if distance_from_base > 0.05:  # More than 5% above base price
+            # Apply downward bias proportional to distance
+            price_change_pct -= min(reversion_strength, 0.02)  # Cap at 2% reversion
+        elif distance_from_base < -0.05:  # More than 5% below base price
+            # Apply upward bias proportional to distance
+            price_change_pct += min(reversion_strength, 0.02)  # Cap at 2% reversion
 
         # Calculate new close price
         new_close = current_price * (1 + price_change_pct)
