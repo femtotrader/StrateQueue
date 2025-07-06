@@ -92,6 +92,18 @@ def _patch_broker_factory(monkeypatch: pytest.MonkeyPatch) -> Generator[None, No
        `broker_factory.py` (relative imports inside package).
     3. Clear BrokerFactory's global registries so next import starts fresh.
     """
+    
+    # Store original modules for restoration
+    original_modules = {}
+    module_names = [
+        "StrateQueue.brokers.Alpaca.alpaca_broker",
+        "StrateQueue.brokers.IBKR.ibkr_broker", 
+        "StrateQueue.brokers.IBKR.credential_check"
+    ]
+    
+    for module_name in module_names:
+        if module_name in sys.modules:
+            original_modules[module_name] = sys.modules[module_name]
 
     # Create fake module for Alpaca broker path
     alpaca_mod = types.ModuleType("StrateQueue.brokers.Alpaca.alpaca_broker")
@@ -111,6 +123,10 @@ def _patch_broker_factory(monkeypatch: pytest.MonkeyPatch) -> Generator[None, No
     # Now import the module under test (after stubs!)
     from StrateQueue.brokers import broker_factory as bf  # local import after stubs
 
+    # Store original BrokerFactory state
+    original_brokers = bf.BrokerFactory._brokers.copy()
+    original_initialized = bf.BrokerFactory._initialized
+
     # Reset internal singleton state so each test is independent
     bf.BrokerFactory._brokers.clear()
     bf.BrokerFactory._initialized = False
@@ -121,5 +137,26 @@ def _patch_broker_factory(monkeypatch: pytest.MonkeyPatch) -> Generator[None, No
     # Yield to the actual test
     yield
 
-    # (No explicit teardown needed – state reset above for next test)
+    # Teardown: Restore original state for subsequent tests
+    try:
+        # Restore original modules in sys.modules
+        for module_name in module_names:
+            if module_name in original_modules:
+                sys.modules[module_name] = original_modules[module_name]
+            elif module_name in sys.modules:
+                del sys.modules[module_name]
+        
+        # Restore original BrokerFactory state
+        bf.BrokerFactory._brokers.clear()
+        bf.BrokerFactory._brokers.update(original_brokers)
+        bf.BrokerFactory._initialized = original_initialized
+        
+        # If there was no original state, re-initialize with real modules
+        if not original_brokers:
+            bf.BrokerFactory._initialized = False
+            bf.BrokerFactory._initialize_brokers()
+            
+    except Exception:
+        # If restoration fails, that's okay - the next test will handle it
+        pass
     

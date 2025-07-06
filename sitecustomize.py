@@ -50,6 +50,60 @@ if os.getenv("SQ_TEST_STUB_BROKERS") == "1":
         # Import the stub modules – they self-register into sys.modules.
         importlib.import_module("unit_tests.brokers.alpaca.alpaca_stubs")
         importlib.import_module("unit_tests.brokers.ibkr.ibkr_stubs")
+
+        # ------------------------------------------------------------------
+        # ALSO register *broker* stubs so StrateQueue's BrokerFactory
+        # creates lightweight fake brokers in the spawned CLI process.
+        # This mirrors the helper in tests/unit_tests/brokers/test_broker_factory.py
+        # but avoids importing pytest in the child interpreter.
+        # ------------------------------------------------------------------
+        import types, sys
+
+        def _register_stub(module_name: str, cls_name: str) -> None:
+            # Force replacement even if module is already loaded - this is needed for CLI subprocess tests
+            # where the real modules may be imported before sitecustomize runs
+
+            stub_mod = types.ModuleType(module_name)
+
+            class _StubBroker:                                 # minimal no-op
+                def __init__(self, *_, **__):                  # accepts any args
+                    pass
+
+                def get_broker_info(self):                     # fake metadata - avoid importing BrokerInfo
+                    # Create a simple namespace that mimics BrokerInfo
+                    import types
+                    # Use the same naming convention as unit test stubs
+                    name_map = {
+                        "AlpacaBroker": "Alpaca-Stub",
+                        "IBKRBroker": "IBKR-Stub"
+                    }
+                    return types.SimpleNamespace(
+                        name=name_map.get(cls_name, f"stub-{cls_name.lower()}"),
+                        version="0",
+                        supported_features={},
+                        description="stub",
+                        supported_markets=["stocks"],  # Match unit test stubs
+                        paper_trading=True,
+                    )
+
+                def validate_credentials(self) -> bool:        # always "valid"
+                    return True
+
+            setattr(stub_mod, cls_name, _StubBroker)
+            sys.modules[module_name] = stub_mod
+
+            # Make sure parent packages expose the sub-module attribute
+            parent, _, child = module_name.rpartition(".")
+            if parent not in sys.modules:
+                sys.modules[parent] = types.ModuleType(parent)
+            setattr(sys.modules[parent], child, stub_mod)
+
+        _register_stub("StrateQueue.brokers.Alpaca.alpaca_broker", "AlpacaBroker")
+        _register_stub("StrateQueue.brokers.IBKR.ibkr_broker", "IBKRBroker")
+        
+        # Also register under src.StrateQueue.brokers path since some imports use that
+        _register_stub("src.StrateQueue.brokers.Alpaca.alpaca_broker", "AlpacaBroker")
+        _register_stub("src.StrateQueue.brokers.IBKR.ibkr_broker", "IBKRBroker")
     except Exception as _e:  # pragma: no cover – stub load failure should not crash
         # Silently continue; the real modules may still be available so the CLI
         # can work, and tests will surface any inconsistencies.

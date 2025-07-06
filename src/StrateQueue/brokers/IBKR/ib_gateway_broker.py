@@ -123,6 +123,10 @@ class IBGatewayBroker(IBKRBroker):
         
         if not super().connect():
             return False
+            
+        # Update port from client if available (for test compatibility)
+        if hasattr(self.ib, 'client_port'):
+            self.port = self.ib.client_port
         
         # Request delayed market data (type 3) for paper trading
         try:

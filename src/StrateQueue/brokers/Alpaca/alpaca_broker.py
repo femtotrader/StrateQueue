@@ -617,6 +617,8 @@ class AlpacaBroker(BaseBroker):
 
         try:
             order = self.trading_client.get_order_by_id(order_id)
+            if order is None:
+                return None
             limit_p = getattr(order, "limit_price", getattr(order, "price", None))
             stop_p = getattr(order, "stop_price", None)
             return {

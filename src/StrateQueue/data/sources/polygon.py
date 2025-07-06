@@ -29,6 +29,9 @@ class PolygonDataIngestion(BaseDataIngestion):
         # WebSocket connection
         self.ws = None
         self.is_connected = False
+        
+        # Track subscribed symbols
+        self.subscribed_symbols = set()
 
     async def fetch_historical_data(
         self, symbol: str, days_back: int = 30, granularity: str = "1m"
@@ -66,11 +69,11 @@ class PolygonDataIngestion(BaseDataIngestion):
             for bar in data["results"]:
                 df_data.append(
                     {
-                        "Open": bar["o"],
-                        "High": bar["h"],
-                        "Low": bar["l"],
-                        "Close": bar["c"],
-                        "Volume": bar["v"],
+                        "Open": float(bar["o"]),
+                        "High": float(bar["h"]),
+                        "Low": float(bar["l"]),
+                        "Close": float(bar["c"]),
+                        "Volume": int(bar["v"]),
                         "timestamp": datetime.fromtimestamp(bar["t"] / 1000),
                     }
                 )

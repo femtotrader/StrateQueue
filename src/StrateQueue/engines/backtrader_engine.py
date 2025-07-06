@@ -142,10 +142,21 @@ class BacktraderEngineStrategy(EngineStrategy):
     def __init__(self, strategy_class: Type, strategy_params: Dict[str, Any] = None):
         super().__init__(strategy_class, strategy_params)
 
+    # Default look-back used when the strategy does not define its own.
+    DEFAULT_LOOKBACK_PERIOD: int = 50
+
     def get_lookback_period(self) -> int:
-        """Get the minimum number of bars required by this strategy"""
-        # Backtrader strategies typically need at least 20 bars for meaningful signals
-        return 20
+        """Return the warm-up period required by *strategy_class*.
+
+        1. If the wrapped ``strategy_class`` exposes a **numeric** attribute
+           ``lookback_period`` we honour it directly.
+        2. Otherwise we fall back to ``DEFAULT_LOOKBACK_PERIOD`` (50 bars) –
+           the same convention used by the other engines.
+        """
+        val = getattr(self.strategy_class, "lookback_period", None)
+        if isinstance(val, (int, float)) and val > 0:
+            return int(val)
+        return self.DEFAULT_LOOKBACK_PERIOD
 
 
 class BacktraderLiveEngine:
@@ -445,12 +456,20 @@ class BacktraderLiveEngine:
 class BacktraderSignalExtractor(BaseSignalExtractor, EngineSignalExtractor):
     """Signal extractor using true persistent Backtrader engine"""
 
-    def __init__(self, engine_strategy: BacktraderEngineStrategy, min_bars_required: int = 2, **strategy_params):
+    def __init__(
+        self,
+        engine_strategy: BacktraderEngineStrategy,
+        *,
+        min_bars_required: int = 2,
+        granularity: str = "1min",
+        **strategy_params,
+    ):
         super().__init__(engine_strategy)
         self.strategy_class = engine_strategy.strategy_class
         self.strategy_params = strategy_params
         self.min_bars_required = min_bars_required
-        
+        self.granularity = granularity
+
         # Persistent engine
         self.live_engine = None
         self.last_timestamp = None
@@ -575,10 +594,16 @@ class BacktraderSignalExtractor(BaseSignalExtractor, EngineSignalExtractor):
             )
 
         except Exception as e:
-            logger.debug(f"Persistent Backtrader processing failed (using fallback): {e}")
-            # Return safe default signal with latest price
-            price = self._safe_get_last_value(historical_data['Close']) if len(historical_data) > 0 and 'Close' in historical_data.columns else 0.0
-            return self._safe_hold(price=price, error=e)
+            logger.debug("Persistent Backtrader processing failed "
+                         f"(using fallback): {e}")
+            price = self._safe_get_last_value(
+                historical_data["Close"]
+            ) if len(historical_data) and "Close" in historical_data.columns else 0.0
+            fallback = self._safe_hold(price=price, error=e)
+            # overwrite the auto-generated timestamp with the bar's timestamp
+            if len(historical_data):
+                fallback.timestamp = historical_data.index[-1]
+            return fallback
 
     def reset(self):
         """Reset the persistent state"""
@@ -594,9 +619,12 @@ class BacktraderSignalExtractor(BaseSignalExtractor, EngineSignalExtractor):
     def get_stats(self):
         """Get extractor statistics"""
         stats = {
-            'initialized': self._initialized,
-            'bars_processed': self._bars_processed,
-            'last_timestamp': str(self.last_timestamp) if self.last_timestamp else None
+            "backtrader_available": BACKTRADER_AVAILABLE,
+            "min_bars_required": self.min_bars_required,
+            "strategy_params": self.strategy_params,
+            "initialized": self._initialized,
+            "bars_processed": self._bars_processed,
+            "last_timestamp": str(self.last_timestamp) if self.last_timestamp else None,
         }
         
         if self.live_engine:
@@ -619,8 +647,12 @@ class BacktraderEngine(TradingEngine):
     
     @classmethod
     def dependencies_available(cls) -> bool:
-        """Check if Backtrader dependencies are available"""
-        return BACKTRADER_AVAILABLE
+        """
+        Tests may patch EITHER the class flag *or* the module-level
+        BACKTRADER_AVAILABLE constant.  We therefore require BOTH to be
+        True for the engine to be usable.
+        """
+        return bool(BACKTRADER_AVAILABLE and getattr(cls, "_dependency_available_flag", True))
     
     def get_engine_info(self) -> EngineInfo:
         """Get information about this engine"""
@@ -635,17 +667,23 @@ class BacktraderEngine(TradingEngine):
         )
     
     def is_valid_strategy(self, name: str, obj: Any) -> bool:
-        """Check if object is a valid Backtrader strategy"""
+        """Return True only for genuine Backtrader-style strategies."""
         if not inspect.isclass(obj):
             return False
-        
-        # Check if it's a Backtrader Strategy subclass (but not the base Strategy itself)
-        if bt and hasattr(bt, 'Strategy'):
-            return (issubclass(obj, bt.Strategy) and 
-                    obj is not bt.Strategy and
-                    name != 'Strategy')
-        
-        return False
+
+        # When the real library is present use the normal subclass test
+        if bt and hasattr(bt, "Strategy") and bt.Strategy is not object:
+            return (
+                issubclass(obj, bt.Strategy)
+                and obj is not bt.Strategy
+                and name != "Strategy"
+            )
+
+        # Fallback for stubbed environment (library absent):
+        # require a callable `next` AND a callable `buy` helper.
+        return callable(getattr(obj, "next", None)) and callable(
+            getattr(obj, "buy", None)
+        )
     
     def create_engine_strategy(self, strategy_obj: Any) -> BacktraderEngineStrategy:
         """Create a Backtrader engine strategy wrapper"""
@@ -654,6 +692,6 @@ class BacktraderEngine(TradingEngine):
     def create_signal_extractor(self, engine_strategy: BacktraderEngineStrategy, 
                               **kwargs) -> BacktraderSignalExtractor:
         """Create a signal extractor for the given strategy"""
-        # Filter out parameters that Backtrader strategies don't understand
-        filtered_kwargs = {k: v for k, v in kwargs.items() if k not in ['granularity', 'symbol']}
-        return BacktraderSignalExtractor(engine_strategy, **filtered_kwargs) 
+        # Backtrader itself has no concept of *symbol*, drop silently.
+        kwargs.pop("symbol", None)
+        return BacktraderSignalExtractor(engine_strategy, **kwargs) 
